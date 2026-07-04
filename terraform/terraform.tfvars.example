@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars and customize before apply.
+# terraform.tfvars is gitignored so bucket names stay local.
+
+aws_region   = "us-east-1"
+project_name = "terraformed"
+bucket_name  = "your-unique-bucket-name"
+environment  = "practice"
+
+# Optional custom domain (leave blank to use the default CloudFront URL):
+# domain_name    = "example.com"
+# hosted_zone_id = "Z0123456789ABCDEF"

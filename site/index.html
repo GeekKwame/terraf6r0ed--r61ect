@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TERRAFORMED — Infrastructure that ships itself</title>
+<meta name="description" content="A Terraform + AWS project that provisions its own home on the internet. Push to main, watch it apply.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e12;
+    --panel:#10161c;
+    --panel-2:#0d1218;
+    --line:#1e2731;
+    --text:#e6edf3;
+    --muted:#7c8b9b;
+    --amber:#ffb454;
+    --cyan:#5fd4d0;
+    --green:#6ee7a8;
+    --red:#ff6b6b;
+    --mono:'JetBrains Mono', ui-monospace, monospace;
+    --sans:'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.01ms !important; transition-duration:0.01ms !important;}
+  }
+
+  /* ambient grid backdrop */
+  .grid-bg{
+    position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+  }
+
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px; position:relative; z-index:1;}
+
+  /* ---------- NAV ---------- */
+  nav{
+    position:sticky; top:0; z-index:10;
+    background:rgba(10,14,18,0.85);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{display:flex; align-items:center; justify-content:space-between; height:64px;}
+  .brand{font-family:var(--mono); font-weight:800; letter-spacing:0.5px; font-size:15px; display:flex; align-items:center; gap:8px;}
+  .brand .dot{width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite;}
+  .navlinks{display:flex; gap:28px; font-size:14px; color:var(--muted);}
+  .navlinks a{color:var(--muted); text-decoration:none; transition:color .2s;}
+  .navlinks a:hover{color:var(--text);}
+  @media (max-width:640px){ .navlinks{display:none;} }
+
+  /* ---------- HERO ---------- */
+  .hero{padding:88px 0 64px; text-align:center;}
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:12px; color:var(--amber);
+    border:1px solid rgba(255,180,84,0.3); background:rgba(255,180,84,0.06);
+    padding:6px 14px; border-radius:100px; margin-bottom:28px;
+  }
+  h1{
+    font-family:var(--mono); font-weight:800; letter-spacing:-1px;
+    font-size:clamp(40px, 8vw, 84px); line-height:0.98; margin:0 0 20px;
+  }
+  h1 .accent{color:var(--amber);}
+  .sub{
+    font-size:19px; color:var(--muted); max-width:560px; margin:0 auto 40px;
+  }
+  .sub strong{color:var(--text); font-weight:600;}
+  .cta-row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:64px;}
+  .btn{
+    font-family:var(--mono); font-size:14px; font-weight:500;
+    padding:13px 24px; border-radius:8px; text-decoration:none;
+    display:inline-flex; align-items:center; gap:8px; transition:transform .15s, border-color .15s;
+    border:1px solid var(--line);
+  }
+  .btn:hover{transform:translateY(-2px);}
+  .btn-primary{background:var(--amber); color:#1a1206; font-weight:700; border-color:var(--amber);}
+  .btn-primary:hover{box-shadow:0 8px 24px -8px rgba(255,180,84,0.5);}
+  .btn-ghost{color:var(--text); background:var(--panel);}
+  .btn-ghost:hover{border-color:var(--cyan);}
+
+  /* ---------- TERMINAL (signature element) ---------- */
+  .term-wrap{max-width:760px; margin:0 auto; text-align:left;}
+  .term{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 40px 80px -30px rgba(0,0,0,0.7);
+  }
+  .term-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:12px 16px; background:var(--panel);
+    border-bottom:1px solid var(--line);
+  }
+  .term-bar .tdot{width:11px; height:11px; border-radius:50%;}
+  .term-title{
+    margin-left:8px; font-family:var(--mono); font-size:12px; color:var(--muted);
+  }
+  .term-body{
+    font-family:var(--mono); font-size:13px; padding:20px 22px;
+    height:340px; overflow:hidden; color:#c3cdd6;
+  }
+  .term-body .l{white-space:pre-wrap; word-break:break-word; min-height:1.6em;}
+  .l.plus{color:var(--green);}
+  .l.dim{color:var(--muted);}
+  .l.cmd{color:var(--text); font-weight:700;}
+  .l.cmd::before{content:"$ "; color:var(--cyan);}
+  .l.ok{color:var(--green); font-weight:700;}
+  .l.url{color:var(--cyan);}
+  .cursor{display:inline-block; width:7px; height:14px; background:var(--amber); vertical-align:-2px; animation:blink 1s step-end infinite;}
+
+  @keyframes blink{50%{opacity:0;}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.35;}}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:80px 0; border-top:1px solid var(--line);}
+  .kicker{
+    font-family:var(--mono); font-size:12px; color:var(--cyan); letter-spacing:1.5px;
+    text-transform:uppercase; margin-bottom:10px; display:block;
+  }
+  h2{font-size:clamp(26px,4vw,34px); margin:0 0 14px; letter-spacing:-0.5px;}
+  .lede{color:var(--muted); max-width:600px; margin-bottom:48px; font-size:16px;}
+
+  /* architecture diagram */
+  .diagram{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:32px; overflow-x:auto;}
+
+  /* stack badges */
+  .stack{display:flex; flex-wrap:wrap; gap:12px;}
+  .badge{
+    font-family:var(--mono); font-size:13px; color:var(--text);
+    background:var(--panel); border:1px solid var(--line);
+    padding:10px 16px; border-radius:8px; display:flex; align-items:center; gap:8px;
+  }
+  .badge .sw{width:8px; height:8px; border-radius:2px;}
+
+  /* steps */
+  .steps{display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:20px;}
+  .step{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px;
+    position:relative;
+  }
+  .step .num{
+    font-family:var(--mono); font-size:13px; color:var(--amber); font-weight:700;
+    display:block; margin-bottom:14px;
+  }
+  .step code{
+    display:block; font-family:var(--mono); font-size:13px; background:var(--panel-2);
+    padding:10px 12px; border-radius:6px; color:var(--green); margin-bottom:12px; overflow-x:auto;
+  }
+  .step p{margin:0; color:var(--muted); font-size:14px;}
+
+  footer{padding:48px 0; text-align:center; color:var(--muted); font-size:13px; font-family:var(--mono);}
+  footer a{color:var(--cyan); text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+
+<nav>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> TERRAFORMED</div>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#stack">Stack</a>
+      <a href="#deploy">Deploy</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">● LIVE INFRASTRUCTURE — SELF-HOSTED BY ITS OWN CODE</div>
+    <h1>THIS PAGE<br>DEPLOYED<span class="accent">.</span>ITSELF<span class="accent">.</span></h1>
+    <p class="sub">A Terraform project that provisions the <strong>exact AWS stack</strong> serving the page you're reading right now. No console. No clicking. Just <code style="color:var(--amber);font-family:var(--mono);">git push</code>.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#deploy">Run terraform apply →</a>
+      <a class="btn btn-ghost" href="#how">See the architecture</a>
+    </div>
+
+    <div class="term-wrap">
+      <div class="term">
+        <div class="term-bar">
+          <span class="tdot" style="background:#ff5f56;"></span>
+          <span class="tdot" style="background:#ffbd2e;"></span>
+          <span class="tdot" style="background:#27c93f;"></span>
+          <span class="term-title">~/terraformed — zsh</span>
+        </div>
+        <div class="term-body" id="termBody"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <span class="kicker">Architecture</span>
+    <h2>One apply. Four resources. Zero servers to babysit.</h2>
+    <p class="lede">A static site bucket sits behind a CDN with a certificate and a domain pointed at it — the boring, bulletproof pattern, fully codified.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 900 220" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; font-family:'JetBrains Mono',monospace;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="#5fd4d0"/>
+          </marker>
+        </defs>
+        <!-- connectors -->
+        <line x1="140" y1="110" x2="230" y2="110" stroke="#5fd4d0" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="370" y1="110" x2="460" y2="110" stroke="#5fd4d0" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <line x1="600" y1="110" x2="690" y2="110" stroke="#5fd4d0" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+        <!-- User -->
+        <rect x="20" y="80" width="120" height="60" rx="8" fill="#0d1218" stroke="#1e2731"/>
+        <text x="80" y="105" fill="#e6edf3" font-size="13" text-anchor="middle" font-weight="700">visitor</text>
+        <text x="80" y="122" fill="#7c8b9b" font-size="10" text-anchor="middle">browser</text>
+
+        <!-- Route53 -->
+        <rect x="230" y="80" width="140" height="60" rx="8" fill="#0d1218" stroke="#1e2731"/>
+        <text x="300" y="105" fill="#e6edf3" font-size="13" text-anchor="middle" font-weight="700">Route 53</text>
+        <text x="300" y="122" fill="#7c8b9b" font-size="10" text-anchor="middle">DNS record</text>
+
+        <!-- CloudFront -->
+        <rect x="460" y="80" width="140" height="60" rx="8" fill="#0d1218" stroke="#ffb454"/>
+        <text x="530" y="105" fill="#ffb454" font-size="13" text-anchor="middle" font-weight="700">CloudFront</text>
+        <text x="530" y="122" fill="#7c8b9b" font-size="10" text-anchor="middle">CDN + ACM cert</text>
+
+        <!-- S3 -->
+        <rect x="690" y="80" width="150" height="60" rx="8" fill="#0d1218" stroke="#1e2731"/>
+        <text x="765" y="105" fill="#e6edf3" font-size="13" text-anchor="middle" font-weight="700">S3 bucket</text>
+        <text x="765" y="122" fill="#7c8b9b" font-size="10" text-anchor="middle">private origin (OAC)</text>
+
+        <!-- bottom label -->
+        <text x="450" y="190" fill="#7c8b9b" font-size="11" text-anchor="middle">provisioned entirely by /terraform · state stored in S3 + DynamoDB lock</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <span class="kicker">Toolchain</span>
+    <h2>Nothing exotic. That's the point.</h2>
+    <p class="lede">Every piece here is something you'll actually use on a real team.</p>
+    <div class="stack">
+      <span class="badge"><span class="sw" style="background:#ffb454;"></span> Terraform</span>
+      <span class="badge"><span class="sw" style="background:#ff9900;"></span> AWS S3</span>
+      <span class="badge"><span class="sw" style="background:#ffb454;"></span> CloudFront</span>
+      <span class="badge"><span class="sw" style="background:#5fd4d0;"></span> Route 53</span>
+      <span class="badge"><span class="sw" style="background:#6ee7a8;"></span> ACM</span>
+      <span class="badge"><span class="sw" style="background:#e6edf3;"></span> GitHub Actions</span>
+    </div>
+  </div>
+</section>
+
+<section id="deploy">
+  <div class="wrap">
+    <span class="kicker">Getting started</span>
+    <h2>Four commands between you and production.</h2>
+    <p class="lede">Clone it, point it at your own AWS account, and watch the state file fill up.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <code>terraform init</code>
+        <p>Pulls the AWS provider and wires up remote state.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <code>terraform plan</code>
+        <p>Shows exactly what's about to exist. No surprises.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <code>terraform apply</code>
+        <p>Bucket, distribution, and DNS record — created in order.</p>
+      </div>
+      <div class="step">
+        <span class="num">04</span>
+        <code>git push origin main</code>
+        <p>CI takes over from here. Every push re-applies and syncs the site.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    built with terraform, aws, and a healthy disregard for ClickOps — <a href="#">view source on GitHub</a>
+  </div>
+</footer>
+
+<script>
+(function(){
+  const lines = [
+    {t:"terraform init", cls:"cmd"},
+    {t:"Initializing the backend...", cls:"dim"},
+    {t:"Initializing provider plugins...", cls:"dim"},
+    {t:"- Installing hashicorp/aws v5.47.0...", cls:"dim"},
+    {t:"Terraform has been successfully initialized!", cls:"ok"},
+    {t:"", cls:"dim"},
+    {t:"terraform apply -auto-approve", cls:"cmd"},
+    {t:"", cls:"dim"},
+    {t:"  + aws_s3_bucket.site", cls:"plus"},
+    {t:"  + aws_s3_bucket_website_configuration.site", cls:"plus"},
+    {t:"  + aws_cloudfront_distribution.cdn", cls:"plus"},
+    {t:"  + aws_acm_certificate.cert", cls:"plus"},
+    {t:"  + aws_route53_record.site", cls:"plus"},
+    {t:"", cls:"dim"},
+    {t:"Plan: 8 to add, 0 to change, 0 to destroy.", cls:"dim"},
+    {t:"", cls:"dim"},
+    {t:"aws_s3_bucket.site: Creating...", cls:"dim"},
+    {t:"aws_s3_bucket.site: Creation complete after 2s", cls:"dim"},
+    {t:"aws_cloudfront_distribution.cdn: Creating...", cls:"dim"},
+    {t:"aws_cloudfront_distribution.cdn: Still creating... [40s elapsed]", cls:"dim"},
+    {t:"aws_cloudfront_distribution.cdn: Creation complete after 51s", cls:"dim"},
+    {t:"aws_route53_record.site: Creation complete after 3s", cls:"dim"},
+    {t:"", cls:"dim"},
+    {t:"Apply complete! Resources: 8 added, 0 changed, 0 destroyed.", cls:"ok"},
+    {t:"", cls:"dim"},
+    {t:"Outputs:", cls:"dim"},
+    {t:"website_url = \"https://terraformed.dev\"", cls:"url"},
+  ];
+
+  const body = document.getElementById('termBody');
+  let li = 0;
+
+  function typeLine(line, done){
+    const el = document.createElement('div');
+    el.className = 'l ' + line.cls;
+    body.appendChild(el);
+    if(line.t === ""){ done(); return; }
+    let i = 0;
+    const speed = line.cls === 'cmd' ? 45 : 6;
+    (function step(){
+      el.textContent = line.t.slice(0, i);
+      i++;
+      body.scrollTop = body.scrollHeight;
+      if(i <= line.t.length){ setTimeout(step, speed); }
+      else { done(); }
+    })();
+  }
+
+  function runAll(){
+    body.innerHTML = '';
+    li = 0;
+    (function next(){
+      if(li >= lines.length){
+        const cur = document.createElement('span');
+        cur.className = 'cursor';
+        body.lastElementChild.appendChild(cur);
+        setTimeout(runAll, 4500); // loop
+        return;
+      }
+      typeLine(lines[li], function(){
+        li++;
+        setTimeout(next, lines[li-1].t === "" ? 80 : 40);
+      });
+    })();
+  }
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    body.innerHTML = lines.map(l => `<div class="l ${l.cls}">${l.t}</div>`).join('');
+  } else {
+    runAll();
+  }
+})();
+</script>
+
+</body>
+</html>
