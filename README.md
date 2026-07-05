@@ -5,6 +5,8 @@
 ![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/github%20actions-%232088FF.svg?style=for-the-badge&logo=githubactions&logoColor=white)
 
+🌐 **[Live Demo Site](https://d2sogi0nzuc853.cloudfront.net/)**
+
 A cloud engineering practice project implementing modern infrastructure-as-code (IaC) and automation workflows. This project provisions a highly secure, private AWS S3 bucket serving static landing page assets behind a CloudFront Content Delivery Network (CDN) distribution, fully managed via GitHub Actions with OpenID Connect (OIDC) authentication.
 
 ---
