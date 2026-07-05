@@ -32,6 +32,25 @@ resource "aws_s3_bucket_versioning" "site" {
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "site" {
+  bucket = aws_s3_bucket.site.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_ownership_controls" "site" {
+  bucket = aws_s3_bucket.site.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
+
 # Upload every file in site_source_dir, guessing content-type so HTML/CSS/JS
 # actually render instead of downloading as octet-stream.
 resource "aws_s3_object" "site_files" {
