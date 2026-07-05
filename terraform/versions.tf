@@ -9,13 +9,13 @@ terraform {
   }
 
   # Uncomment once you've created a bucket + DynamoDB table for remote state.
-  # backend "s3" {
-  #   bucket         = "terraformed-tfstate"
-  #   key            = "site/terraform.tfstate"
-  #   region         = "us-east-1"
-  #   dynamodb_table = "terraformed-tf-locks"
-  #   encrypt        = true
-  # }
+  backend "s3" {
+    bucket         = "terraformed-tfstate-eddie-12345"
+    key            = "site/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraformed-tf-locks"
+    encrypt        = true
+  }
 }
 
 provider "aws" {

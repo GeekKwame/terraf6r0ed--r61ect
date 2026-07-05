@@ -13,8 +13,9 @@ variable "project_name" {
 variable "bucket_name" {
   description = "Globally unique S3 bucket name for the site's origin. Change this, S3 bucket names are global."
   type        = string
-  default     = "terraformed-site-change-me-12345"
+  default     = "terraformed-site-eddie-12345"
 }
+
 
 variable "domain_name" {
   description = "Custom domain for the site (e.g. terraformed.dev). Leave blank to skip Route 53 + ACM and just use the CloudFront domain."
